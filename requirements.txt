@@ -1,5 +1,7 @@
 pandas
 mplfinance
-moviepy
+moviepy==1.0.3
 numpy
+decorator==4.4.2
 Pillow
+proglog
