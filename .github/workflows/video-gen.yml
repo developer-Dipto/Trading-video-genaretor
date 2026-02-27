@@ -1,4 +1,4 @@
-name: Generate Trading Video (OpenCV)
+name: Generate Trading Video
 
 on:
   workflow_dispatch:
@@ -16,23 +16,17 @@ jobs:
         with:
           python-version: '3.9'
 
-      # ফন্ট প্যাকেজ ইন্সটল (Pillow এর জন্য)
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-dejavu
-
       - name: Install Python Libraries
         run: pip install -r requirements.txt
 
       - name: Run Generation Script
         run: python main.py
 
-      - name: Verify File Size
+      - name: Verify Video Exists
         run: ls -lh trading_quiz.mp4
 
       - name: Upload Video Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: working-video
+          name: final-video
           path: trading_quiz.mp4
