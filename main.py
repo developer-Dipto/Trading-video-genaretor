@@ -1,74 +1,80 @@
 import pandas as pd
 import mplfinance as mpf
-from moviepy.editor import *
-from PIL import Image, ImageDraw, ImageFont
+import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 import os
 
 def create_video():
     print("1. Generating Data...")
-    dates = pd.date_range(start='2024-01-01', periods=30, freq='D')
-    data = np.random.randn(30, 4).cumsum(axis=0)
+    # ডামি ডেটা তৈরি
+    dates = pd.date_range(start='2024-01-01', periods=40, freq='D')
+    data = np.random.randn(40, 4).cumsum(axis=0)
     data = (data - data.min()) * 10 + 100
     df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'], index=dates)
 
-    # চার্ট স্টাইল এবং সেভ
-    style = mpf.make_mpf_style(base_mpf_style='nightclouds', rc={'font.size': 10})
+    print("2. Creating Chart Image...")
+    # চার্ট ইমেজ তৈরি (ফিক্সড সাইজ)
+    style = mpf.make_mpf_style(base_mpf_style='yahoo', rc={'font.size': 12})
     chart_filename = 'chart_temp.png'
-    mpf.plot(df, type='candle', style=style, savefig=dict(fname=chart_filename, dpi=100, bbox_inches='tight'))
+    # dpi এবং সাইজ ফিক্সড রাখা জরুরি ভিডিওর জন্য
+    mpf.plot(df, type='candle', style=style, savefig=dict(fname=chart_filename, dpi=100, figsize=(10, 8)))
 
-    print("2. Adding Text using PIL (No ImageMagick)...")
-    
-    # ১. চার্ট ইমেজ ওপেন করা
-    img = Image.open(chart_filename)
-    
-    # ২. ইমেজের সাইজ অনুযায়ী ব্যাকগ্রাউন্ড বড় করা (যাতে টেক্সট বসানো যায়)
-    # আমরা ইমেজের উপরে এবং নিচে একটু জায়গা বাড়াবো
-    w, h = img.size
-    new_h = h + 150 # টেক্সটের জন্য ১৫০ পিক্সেল জায়গা বাড়ালাম
-    background = Image.new('RGB', (w, new_h), (20, 20, 30)) # ডার্ক ব্যাকগ্রাউন্ড
-    background.paste(img, (0, 75)) # চার্টটি মাঝখানে বসালাম
+    print("3. Processing Image with Pillow...")
+    # পিলো দিয়ে টেক্সট বসানো
+    if not os.path.exists(chart_filename):
+        raise FileNotFoundError("Chart image failed to generate.")
 
-    # ৩. টেক্সট ড্র করা
-    draw = ImageDraw.Draw(background)
+    img_pil = Image.open(chart_filename).convert('RGB')
+    width, height = img_pil.size
+
+    # ইমেজের ওপর ড্র করা
+    draw = ImageDraw.Draw(img_pil)
     
-    # ফন্ট লোড করা (ডিফল্ট ফন্ট ব্যবহার করছি যাতে এরর না হয়)
+    # ফন্ট লোড করার চেষ্টা (না পেলে ডিফল্ট)
     try:
-        # লিনাক্সের জন্য ফন্ট পাথ
-        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
-        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
     except:
-        # ফন্ট না পেলে ডিফল্ট
-        font_large = ImageFont.load_default()
-        font_small = ImageFont.load_default()
+        font = ImageFont.load_default()
 
-    # টেক্সট ১: UP / DOWN
+    # টেক্সট ১: টাইটেল
     text_top = "PREDICT: UP / DOWN"
-    # টেক্সট মাঝখানে আনার লজিক (সাধারণত pillow তে anchor ব্যবহার করা হয়, এখানে সহজ ভাবে দিচ্ছি)
-    draw.text((w/2 - 150, 20), text_top, fill="white", font=font_large)
+    # টেক্সট সেন্টারে বসানোর লজিক
+    bbox = draw.textbbox((0, 0), text_top, font=font)
+    text_w = bbox[2] - bbox[0]
+    draw.text(((width - text_w) / 2, 20), text_top, fill=(0, 0, 0), font=font) # কালো টেক্সট
 
-    # টেক্সট ২: Timer
+    # টেক্সট ২: টাইমার
     text_bottom = "5 Seconds"
-    draw.text((w/2 - 80, new_h - 60), text_bottom, fill="yellow", font=font_small)
+    bbox2 = draw.textbbox((0, 0), text_bottom, font=font)
+    text_w2 = bbox2[2] - bbox2[0]
+    draw.text(((width - text_w2) / 2, height - 60), text_bottom, fill=(255, 0, 0), font=font) # লাল টেক্সট
 
-    # ৪. ফাইনাল ইমেজ সেভ করা
-    final_image_path = "final_frame.png"
-    background.save(final_image_path)
+    print("4. Writing Video using OpenCV...")
+    
+    # PIL ইমেজকে OpenCV ফরম্যাটে কনভার্ট করা (RGB -> BGR)
+    frame = np.array(img_pil)
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    print("3. Rendering Video from Image...")
+    # ভিডিও রাইটার সেটআপ
+    video_filename = "trading_quiz.mp4"
+    fps = 30
+    duration = 5 # সেকেন্ড
     
-    # ৫. ভিডিও তৈরি (শুধুমাত্র ইমেজ থেকে, তাই খুব ফাস্ট হবে)
-    clip = ImageClip(final_image_path).set_duration(5)
-    
-    clip.write_videofile(
-        "trading_quiz.mp4", 
-        fps=24, 
-        codec="libx264", 
-        audio=False,     # অডিও অফ (এটি খুব জরুরি)
-        preset="medium", # কোয়ালিটি ভালো রাখার জন্য
-        threads=4
-    )
-    print("Video Generated Successfully!")
+    # Codec: 'mp4v' হলো সবচেয়ে নিরাপদ অপশন MP4 এর জন্য
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(video_filename, fourcc, fps, (width, height))
+
+    # ৫ সেকেন্ডের জন্য একই ফ্রেম বারবার রাইট করা
+    for _ in range(fps * duration):
+        out.write(frame)
+
+    out.release() # ফাইল সেভ করার জন্য এটি মাস্ট
+    print(f"Video generated successfully: {video_filename}")
+
+    # ক্লিনআপ
+    if os.path.exists(chart_filename):
+        os.remove(chart_filename)
 
 if __name__ == "__main__":
     create_video()
