@@ -1,5 +1,4 @@
 pandas
 mplfinance
 opencv-python-headless
-Pillow
 numpy
