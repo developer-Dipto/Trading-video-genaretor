@@ -1,8 +1,5 @@
 name: Generate Trading Video
 
-# এটি কখন রান হবে?
-# workflow_dispatch: আপনি ম্যানুয়ালি বাটন ক্লিক করে রান করতে পারবেন।
-# schedule: প্রতিদিন নির্দিষ্ট সময়ে অটোমেটিক রান করা যাবে (অপশনাল)।
 on:
   workflow_dispatch:
 
@@ -11,38 +8,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ১. কোড চেকআউট করা
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # ২. পাইথন সেটআপ করা
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      # ৩. সিস্টেম ডিপেন্ডেন্সি ইনস্টল (ImageMagick)
-      # MoviePy লিনাক্সে টেক্সট জেনারেট করার জন্য ImageMagick লাগে।
-      - name: Install System Dependencies
+      # লিনাক্স ফন্ট ইনস্টল (Pillow এর জন্য সুন্দর ফন্ট পাওয়ার জন্য)
+      - name: Install Fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick ffmpeg fonts-liberation
-          # ImageMagick পলিসি ফিক্স (সিকিউরিটি রেস্ট্রিকশন রিমুভ করা)
-          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml
+          sudo apt-get install -y fonts-dejavu
 
-      # ৪. পাইথন লাইব্রেরি ইনস্টল
       - name: Install Python Libraries
         run: |
           pip install -r requirements.txt
 
-      # ৫. স্ক্রিপ্ট রান করা
       - name: Run Video Generation Script
         run: python main.py
 
-      # ৬. ভিডিওটি ডাউনলোড করার জন্য আপলোড করা (Artifact)
+      # সাইজ চেক (ডিবাগিং এর জন্য)
+      - name: Check Output File
+        run: ls -lh trading_quiz.mp4
+
       - name: Upload Video Artifact
         uses: actions/upload-artifact@v4
         with:
           name: generated-video
           path: trading_quiz.mp4
-          retention-days: 5
