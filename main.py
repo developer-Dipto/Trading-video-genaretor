@@ -1,10 +1,7 @@
 import pandas as pd
 import mplfinance as mpf
 from moviepy.editor import *
-# MoviePy Config (Linux Server Fix)
-from moviepy.config import change_settings
-change_settings({"IMAGEMAGICK_BINARY": "/usr/bin/convert"})
-
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import os
 
@@ -15,38 +12,61 @@ def create_video():
     data = (data - data.min()) * 10 + 100
     df = pd.DataFrame(data, columns=['Open', 'High', 'Low', 'Close'], index=dates)
 
-    print("2. Creating Chart Image...")
-    # savefig এ tight_layout ব্যবহার করলে ইমেজ সাইজ ঠিক থাকে
-    style = mpf.make_mpf_style(base_mpf_style='nightclouds', rc={'font.size': 12})
-    mpf.plot(df, type='candle', style=style, savefig=dict(fname='chart.png', dpi=100, bbox_inches='tight'))
+    # চার্ট স্টাইল এবং সেভ
+    style = mpf.make_mpf_style(base_mpf_style='nightclouds', rc={'font.size': 10})
+    chart_filename = 'chart_temp.png'
+    mpf.plot(df, type='candle', style=style, savefig=dict(fname=chart_filename, dpi=100, bbox_inches='tight'))
 
-    print("3. Processing Video...")
+    print("2. Adding Text using PIL (No ImageMagick)...")
     
-    # ইমেজ ক্লিপ লোড করা
-    if not os.path.exists("chart.png"):
-        raise Exception("Chart image was not generated!")
-        
-    chart_clip = ImageClip("chart.png").set_duration(5)
+    # ১. চার্ট ইমেজ ওপেন করা
+    img = Image.open(chart_filename)
     
-    # টেক্সট ক্লিপ (ফন্ট ও সাইজ এডজাস্ট করা হয়েছে)
-    # লিনাক্স সার্ভারে অনেক সময় ফন্ট মিসিং থাকে, তাই ডিফল্ট বা common ফন্ট ব্যবহার নিরাপদ
-    txt_clip = TextClip("PREDICT: UP / DOWN", fontsize=50, color='white', font='DejaVu-Sans-Bold')
-    txt_clip = txt_clip.set_position(('center', 'top')).set_duration(5)
-    
-    timer_clip = TextClip("5 Seconds", fontsize=40, color='yellow', font='DejaVu-Sans-Bold')
-    timer_clip = timer_clip.set_position(('center', 'bottom')).set_duration(5)
+    # ২. ইমেজের সাইজ অনুযায়ী ব্যাকগ্রাউন্ড বড় করা (যাতে টেক্সট বসানো যায়)
+    # আমরা ইমেজের উপরে এবং নিচে একটু জায়গা বাড়াবো
+    w, h = img.size
+    new_h = h + 150 # টেক্সটের জন্য ১৫০ পিক্সেল জায়গা বাড়ালাম
+    background = Image.new('RGB', (w, new_h), (20, 20, 30)) # ডার্ক ব্যাকগ্রাউন্ড
+    background.paste(img, (0, 75)) # চার্টটি মাঝখানে বসালাম
 
-    video = CompositeVideoClip([chart_clip, txt_clip, timer_clip])
+    # ৩. টেক্সট ড্র করা
+    draw = ImageDraw.Draw(background)
     
-    print("4. Writing Video File...")
-    # ফিক্সড কোডেক সেটিংস
-    video.write_videofile(
+    # ফন্ট লোড করা (ডিফল্ট ফন্ট ব্যবহার করছি যাতে এরর না হয়)
+    try:
+        # লিনাক্সের জন্য ফন্ট পাথ
+        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+    except:
+        # ফন্ট না পেলে ডিফল্ট
+        font_large = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+
+    # টেক্সট ১: UP / DOWN
+    text_top = "PREDICT: UP / DOWN"
+    # টেক্সট মাঝখানে আনার লজিক (সাধারণত pillow তে anchor ব্যবহার করা হয়, এখানে সহজ ভাবে দিচ্ছি)
+    draw.text((w/2 - 150, 20), text_top, fill="white", font=font_large)
+
+    # টেক্সট ২: Timer
+    text_bottom = "5 Seconds"
+    draw.text((w/2 - 80, new_h - 60), text_bottom, fill="yellow", font=font_small)
+
+    # ৪. ফাইনাল ইমেজ সেভ করা
+    final_image_path = "final_frame.png"
+    background.save(final_image_path)
+
+    print("3. Rendering Video from Image...")
+    
+    # ৫. ভিডিও তৈরি (শুধুমাত্র ইমেজ থেকে, তাই খুব ফাস্ট হবে)
+    clip = ImageClip(final_image_path).set_duration(5)
+    
+    clip.write_videofile(
         "trading_quiz.mp4", 
         fps=24, 
         codec="libx264", 
-        audio=False, 
-        preset="ultrafast",
-        logger=None # লগ আউটপুট ক্লিন রাখার জন্য
+        audio=False,     # অডিও অফ (এটি খুব জরুরি)
+        preset="medium", # কোয়ালিটি ভালো রাখার জন্য
+        threads=4
     )
     print("Video Generated Successfully!")
 
